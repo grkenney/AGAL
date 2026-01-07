@@ -34,6 +34,7 @@ gtf <- rtracklayer::import('Bos_taurus.ARS-UCD1.3.113.gtf')
 
 gns <- mcols(gtf)[, c("gene_id", "gene_name")] |> unique()
 
+# if there isn't a gene name, just use the id
 gns$gene_name <- apply(gns, 1, function(x) ifelse(is.na(x[2]), x[1], x[2]))
 rownames(gns) <- gns$gene_id
 
