@@ -4,3 +4,4 @@ Bos_taurus.ARS-UCD1.3.113.gtf
 tmp/*
 data/*
 .Rproj.user
+code/tmp/*
