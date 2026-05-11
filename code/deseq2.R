@@ -1,15 +1,13 @@
+library(dplyr)
 library(DESeq2)
 library(ggplot2)
 library(ggrepel)
 library(patchwork)
 library(org.Bt.eg.db)
+library(clusterProfiler)
 
-source(file.path(codedir, "customMAplot.R"))
-source(file.path(codedir, "getSigRes.R"))
 
-# ########################### #
 # ---- Setup Directories ---- 
-# ########################### #
 
 # base directory of pipeline outputs and output directory for 
 # figures and objects
@@ -17,6 +15,8 @@ basedir <- "/proj/phanstiel_lab/Data/processed/AGAL/rna"
 outdir <- "/work/users/g/k/gkenney/AGAL/results"
 codedir <- "/work/users/g/k/gkenney/AGAL/code"
 
+source(file.path(codedir, "customMAplot.R"))
+source(file.path(codedir, "getSigRes.R"))
 
 # make an output directory for figures
 figdir <- file.path(outdir, "figures")
@@ -25,9 +25,7 @@ if (!dir.exists(figdir)) {
 }
 
 
-# ########################### #
 # ---- Load Data ----
-# ########################### #
 
 # load gtf to convert gene ids to gene names
 gtf <- rtracklayer::import('Bos_taurus.ARS-UCD1.3.113.gtf')
@@ -55,18 +53,16 @@ samplesheet$group <- factor(paste0(samplesheet$Genotype, "_",
                                    samplesheet$Treatment))
 
 
-# ################ #
 # ---- DESeq2 ----
-# ################ #
 
 # make a DESeqDataSet object
 ddsTxi <- DESeqDataSetFromTximport(txi,
                                    colData = samplesheet,
                                    design = ~ 0 + group)
 
-# keep only rows that have 10 or more counts in at least 3 samples
+# keep only rows that have 10 or more counts in at least 6 samples
 paste("Rows before filter: ", nrow(ddsTxi))
-keep <- rowSums(counts(ddsTxi) >= 10) >= 3
+keep <- rowSums(counts(ddsTxi) >= 10) >= 6
 ddsTxi <- ddsTxi[keep,]
 paste("Rows after filter: ", nrow(ddsTxi))
 
@@ -78,12 +74,10 @@ dds <- DESeq(ddsTxi)
 counts(dds)
 write.csv(counts(dds, normalized=T), 
           file = file.path(outdir, "norm_counts.csv"))
+saveRDS(dds, file.path(outdir, "dds.rda"))
 
 
-
-# ########################### #
 ## ---- undiff KOvC ----
-# ########################### #
 
 ### ---- MA Plot ----
 res_undiff <- results(dds,
@@ -118,9 +112,7 @@ write.csv(res_undiff_sig,
           row.names = T)
 
 
-# ########################### #
 ## ---- diff KOvC ----
-# ########################### #
 
 ### ---- MA Plot ----
 res_diff <- results(dds,
@@ -154,10 +146,7 @@ write.csv(res_diff_sig,
           row.names = F)
 
 
-
-# ############################### #
 ## ---- control diff v undiff ----
-# ############################### #
 
 res_cntrl <- results(dds,
                     contrast = c("group",
@@ -168,10 +157,14 @@ res_cntrl$gene_name <- gns[rownames(res_cntrl), "gene_name"]
 
 res_cntrl_sig <- getSigRes(res_cntrl)
 
+customMAplot(res_cntrl, mo = 1, pval_thresh = 0.01, lfc_thresh = 1)
 
-# ############################### #
+write.csv(as.data.frame(res_cntrl), 
+          file = file.path(outdir, "DE_C_diff_v_undiff.csv"),
+          row.names = T)
+
+
 ## ---- KO diff v undiff ----
-# ############################### #
 
 res_ko <- results(dds,
                      contrast = c("group",
@@ -182,10 +175,12 @@ res_ko$gene_name <- gns[rownames(res_ko), "gene_name"]
 
 res_ko_sig <- getSigRes(res_ko)
 
+write.csv(as.data.frame(res_ko), 
+          file = file.path(outdir, "DE_KO_diff_v_undiff.csv"),
+          row.names = T)
 
-# ####################### #
+
 # ---- Results Table ----
-# ####################### #
 
 all_res <- counts(dds, normalized=TRUE) |>
   as.data.frame()
@@ -238,50 +233,3 @@ write.csv(all_res,
           file = file.path(outdir, "RNA_all_res.csv"),
           row.names = F)
 
-
-# ############## #
-# ---- PCA ----
-# ############## #
-
-vsd <- vst(dds, blind=FALSE)
-
-pcaData <- plotPCA(vsd, intgroup=c("Genotype", "Treatment"), returnData=TRUE)
-percentVar <- round(100 * attr(pcaData, "percentVar"))
-group_pca <- ggplot(pcaData, aes(PC1, PC2, color=Treatment, shape=Genotype)) +
-  geom_point(size=3) +
-  xlab(paste0("PC1: ",percentVar[1],"% variance")) +
-  ylab(paste0("PC2: ",percentVar[2],"% variance")) + 
-  #coord_fixed() +
-  scale_color_manual(values = scales::hue_pal()(2), 
-                     labels = c("d0", "d3")) +
-  scale_shape_manual(values = scales::shape_pal()(2), 
-                     labels = c("Control", "Knockout")) +
-  theme_classic() +
-  theme(legend.position = "bottom")
-group_pca |> 
-  ggsave(filename = file.path(outdir, "figures/PCA.pdf"),
-         height = 6.5, width = 6.5)
-
-
-# #################### #
-# ---- Gene Plots ----
-# #################### #
-
-rowData(dds)$gene_name <- gns[rownames(rowData(dds)), "gene_name"]
-
-gene <- "TNNC1"
-counts(dds, normalized=TRUE)[rownames(dds)[which(rowData(dds)$gene_name == gene)], ] |>
-  as.data.frame() |>
-  tibble::rownames_to_column("sample") |>
-  setNames(c("sample", "counts")) |>
-  tidyr::separate(col = "sample", 
-           into = c("AGAL", "genotype", "differentiation", "replicate"), 
-           sep = "_") |>
-  ggplot(aes(x = genotype, y = counts, col = differentiation)) +
-  #geom_boxplot() +
-  geom_jitter(width = 0.02) +
-  theme_light() +
-  ylab("Normalized Counts") +
-  xlab("Genotype") +
-  theme(legend.title = element_blank()) +
-  ggtitle(gene)
