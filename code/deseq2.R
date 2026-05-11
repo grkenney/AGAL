@@ -143,7 +143,7 @@ customMAplot(resLFC_diff, mo = Inf, pval_thresh = 0.01, lfc_thresh = 1) |>
 res_diff_sig <- getSigRes(res_diff)
 write.csv(res_diff_sig, 
           file = file.path(outdir, "DE_diff_KOvC.csv"),
-          row.names = F)
+          row.names = T)
 
 
 ## ---- control diff v undiff ----
