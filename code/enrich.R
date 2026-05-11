@@ -45,13 +45,13 @@ up_ko_gns <- res_ko_sig %>%
   unlist()
 
 down_c_gns <- res_cntrl_sig %>% 
-  filter(log2FoldChange < logfc_cutoff) %>%
+  filter(log2FoldChange < (-logfc_cutoff)) %>%
   arrange(desc(log2FoldChange)) %>% 
   select(ENSEMBL) %>% 
   unlist()
 
 down_ko_gns <- res_ko_sig %>% 
-  filter(log2FoldChange < logfc_cutoff) %>%
+  filter(log2FoldChange < (-logfc_cutoff)) %>%
   arrange(desc(log2FoldChange)) %>% 
   select(ENSEMBL) %>% 
   unlist()
