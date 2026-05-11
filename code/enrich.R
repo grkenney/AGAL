@@ -30,7 +30,7 @@ res_ko_sig <- res_ko_df %>%
   dplyr::filter(padj < padj_cutoff)
 
 
-# ---- get up and down gene ids ----
+# ---- get up and down genes ----
 
 up_c_gns <- res_cntrl_sig %>% 
   filter(log2FoldChange > logfc_cutoff) %>% 
@@ -57,7 +57,7 @@ down_ko_gns <- res_ko_sig %>%
   unlist()
 
 
-# ---- go enrichment up genes ----
+# ---- go enrichment ----
 
 # upregulated genes
 go_c_up <- gost(query = up_c_gns, organism = "btaurus", ordered_query = FALSE,
@@ -74,6 +74,27 @@ go_c_down <- gost(query = down_c_gns, organism = "btaurus", ordered_query = FALS
 go_ko_down <- gost(query = down_ko_gns, organism = "btaurus", ordered_query = FALSE,
                    correction_method = "fdr", custom_bg = rownames(dds),
                    sources = "GO:BP")
+
+# save results
+go_out_dir <- file.path(outdir, "GO")
+if(!file.exists(go_out_dir)) { dir.create(go_out_dir) }
+
+apply(go_c_up$result, 2, as.character) |>
+  write.csv(file = file.path(go_out_dir, "GO_cntrl_up.csv"),
+            row.names = F)
+
+apply(go_ko_up$result, 2, as.character) |>
+  write.csv(file = file.path(go_out_dir, "GO_ko_up.csv"),
+            row.names = F)
+
+apply(go_c_down$result, 2, as.character) |>
+  write.csv(file = file.path(go_out_dir, "GO_cntrl_down.csv"),
+            row.names = F)
+
+apply(go_ko_down$result, 2, as.character) |>
+  write.csv(file = file.path(go_out_dir, "GO_ko_down.csv"),
+            row.names = F)
+
 
 # ---- select go terms ----
 select_go_terms <- c("cell differentiation", # up terms
@@ -125,7 +146,7 @@ ggplot(go_select,
   geom_point() +
   coord_flip() +
   xlab("") + ylab("Genotype") +
-  theme_bw() +
+  theme_classic() +
   scale_size(range = c(4, 14), breaks = c(5,10,15,20)) +
   scale_x_discrete(limits = rev) +
   labs(color = "Direction", size = "-log10(adj. pval)") +
